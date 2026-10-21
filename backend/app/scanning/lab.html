@@ -1,0 +1,367 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reweave Vision Lab</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f8fafc; color: #0f172a; }
+    header { padding: 22px 32px; border-bottom: 1px solid #e2e8f0; background: white; }
+    h1 { margin: 0 0 6px; font-size: 24px; line-height: 1.2; }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    h3 { margin: 0 0 6px; font-size: 15px; }
+    p { margin: 0; color: #475569; }
+    main { padding: 22px 32px 48px; display: grid; gap: 18px; }
+    .panel { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button, .link { border: 1px solid #0f172a; background: #0f172a; color: white; border-radius: 6px; padding: 9px 12px; cursor: pointer; text-decoration: none; font-size: 14px; min-height: 38px; }
+    button.secondary, .link.secondary, .tab { background: white; color: #0f172a; border-color: #cbd5e1; }
+    .tab.active { background: #0f172a; color: white; border-color: #0f172a; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input[type=file] { max-width: 320px; }
+    .login input { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: grid; gap: 16px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .metric { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #ffffff; }
+    .metric .label { font-size: 12px; color: #64748b; }
+    .metric .value { margin-top: 6px; font-size: 20px; font-weight: 700; color: #0f172a; }
+    .preview { display: grid; gap: 10px; }
+    .preview img { width: 100%; max-height: 620px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; background: white; }
+    .annotated-wrap img { max-height: 760px; }
+    .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .group { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; display: grid; gap: 8px; background: white; }
+    .group-top { display: flex; gap: 10px; align-items: center; min-width: 0; }
+    .bin { width: 42px; height: 30px; border-radius: 6px; color: white; font-weight: 800; display: grid; place-items: center; flex: none; }
+    .group-title { font-weight: 700; overflow-wrap: anywhere; }
+    .muted { color: #64748b; font-size: 13px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 8px; font-size: 12px; color: #334155; background: #f8fafc; }
+    .detail-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; color: #334155; position: sticky; top: 0; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr.selected { background: #eff6ff; }
+    .swatch { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(15,23,42,.15); display: inline-block; vertical-align: middle; margin-right: 7px; }
+    .piece-detail { position: sticky; top: 14px; display: grid; gap: 10px; }
+    .piece-detail img { width: 100%; max-height: 240px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; background: white; }
+    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; font-size: 13px; }
+    .kv div:nth-child(odd) { color: #64748b; }
+    code, pre { background: #0f172a; color: #e2e8f0; border-radius: 8px; }
+    pre { padding: 16px; overflow: auto; max-height: 520px; }
+    .warn { padding: 10px 12px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 6px; margin-top: 12px; }
+    .status { color: #475569; }
+    @media (max-width: 1000px) { .grid, .detail-grid, .summary { grid-template-columns: 1fr; } main, header { padding-left: 16px; padding-right: 16px; } .piece-detail { position: static; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Reweave Vision Lab</h1>
+    <p>Upload one table photo. The pipeline segments fabric, filters reference objects, estimates scale, asks a vision LLM for broad material type, and returns sort bins.</p>
+  </header>
+  <main>
+    <section class="panel controls login" id="loginPanel">
+      <input id="email" type="email" placeholder="Operator email" autocomplete="username" />
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <button id="signIn">Sign in</button>
+      <span id="loginStatus" class="status">Scanning requires a factory or admin account.</span>
+    </section>
+
+    <section class="panel controls">
+      <input id="file" type="file" accept="image/*" />
+      <button id="run">Run Vision Pipeline</button>
+      <a class="link secondary" href="/api/vision/aruco-marker" target="_blank">Download ArUco Marker</a>
+      <button id="downloadImage" class="secondary" disabled>Download Annotated PNG</button>
+      <button id="downloadCsv" class="secondary" disabled>Download CSV</button>
+      <span id="status" class="status"></span>
+    </section>
+
+    <section id="warnings"></section>
+
+    <section class="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="piecesPanel">Pieces</button>
+      <button class="tab" data-tab="groupsPanel">Sort Bins</button>
+      <button class="tab" data-tab="debugPanel">Debug</button>
+    </section>
+
+    <section id="overview" class="tab-panel active">
+      <div class="summary" id="summary"></div>
+      <div class="grid">
+        <div class="panel preview">
+          <h2>Original</h2>
+          <img id="original" alt="" />
+        </div>
+        <div class="panel preview annotated-wrap">
+          <h2>Annotated Sorting Plan</h2>
+          <img id="annotated" alt="" />
+        </div>
+      </div>
+    </section>
+
+    <section id="piecesPanel" class="tab-panel">
+      <div class="detail-grid">
+        <div class="panel">
+          <h2>Detected Pieces</h2>
+          <div style="overflow:auto; max-height: 680px;">
+            <table id="pieces"></table>
+          </div>
+        </div>
+        <aside class="panel piece-detail" id="pieceDetail">
+          <h2>Piece Detail</h2>
+          <p class="muted">Select a piece row after running the pipeline.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="groupsPanel" class="tab-panel">
+      <div class="panel">
+        <h2>Sort Bins</h2>
+        <div class="groups" id="groups"></div>
+      </div>
+    </section>
+
+    <section id="debugPanel" class="tab-panel">
+      <div class="grid">
+        <div class="panel">
+          <h2>Reference And Filter Debug</h2>
+          <div id="debugSummary" class="muted"></div>
+        </div>
+        <div class="panel">
+          <h2>Raw JSON</h2>
+          <pre id="json">{}</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const TOKEN_KEY = 'reweave_lab_token'
+    const loginStatus = document.getElementById('loginStatus')
+    let sessionToken = null
+    function labToken() {
+      try { return localStorage.getItem(TOKEN_KEY) || sessionToken } catch { return sessionToken }
+    }
+    if (labToken()) loginStatus.textContent = 'Signed in.'
+    document.getElementById('signIn').addEventListener('click', async () => {
+      loginStatus.textContent = 'Signing in...'
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+        }),
+      })
+      if (!res.ok) { loginStatus.textContent = 'Sign-in failed.'; return }
+      const { access_token, name } = await res.json()
+      sessionToken = access_token
+      try { localStorage.setItem(TOKEN_KEY, access_token) } catch {}
+      loginStatus.textContent = `Signed in as ${name}.`
+    })
+
+    const file = document.getElementById('file')
+    const run = document.getElementById('run')
+    const statusEl = document.getElementById('status')
+    const original = document.getElementById('original')
+    const annotated = document.getElementById('annotated')
+    const warnings = document.getElementById('warnings')
+    const piecesTable = document.getElementById('pieces')
+    const pieceDetail = document.getElementById('pieceDetail')
+    const groupsEl = document.getElementById('groups')
+    const summaryEl = document.getElementById('summary')
+    const debugSummary = document.getElementById('debugSummary')
+    const jsonEl = document.getElementById('json')
+    const downloadImage = document.getElementById('downloadImage')
+    const downloadCsv = document.getElementById('downloadCsv')
+    let lastResult = null
+    let selectedPieceId = null
+
+    file.addEventListener('change', () => {
+      const selected = file.files[0]
+      if (selected) original.src = URL.createObjectURL(selected)
+    })
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+        tab.classList.add('active')
+        document.getElementById(tab.dataset.tab).classList.add('active')
+      })
+    })
+
+    run.addEventListener('click', async () => {
+      const selected = file.files[0]
+      if (!selected) return
+      run.disabled = true
+      statusEl.textContent = 'Running Replicate + OpenRouter... this can take 30-90 seconds.'
+      warnings.innerHTML = ''
+      try {
+        const form = new FormData()
+        form.append('image', selected)
+        const token = labToken()
+        const res = await fetch('/api/vision/detect', {
+          method: 'POST',
+          body: form,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (!res.ok) throw new Error(await res.text())
+        lastResult = await res.json()
+        render(lastResult)
+        statusEl.textContent = `Done: ${lastResult.pieces.length} pieces, ${lastResult.groups.length} bins`
+      } catch (err) {
+        statusEl.textContent = 'Failed'
+        warnings.innerHTML = `<div class="warn">${escapeHtml(err.message)}</div>`
+      } finally {
+        run.disabled = false
+      }
+    })
+
+    function render(result) {
+      annotated.src = result.annotated_image_data_url || ''
+      jsonEl.textContent = JSON.stringify(result, null, 2)
+      warnings.innerHTML = (result.warnings || []).map(w => `<div class="warn">${escapeHtml(w)}</div>`).join('')
+      renderSummary(result)
+      renderGroups(result.groups || [])
+      renderTable(result.piece_table || [])
+      renderDebug(result)
+      selectedPieceId = (result.pieces || [])[0]?.id ?? null
+      renderPieceDetail()
+      downloadImage.disabled = !result.annotated_image_data_url
+      downloadCsv.disabled = !(result.piece_table || []).length
+    }
+
+    function renderSummary(result) {
+      const totalWeight = (result.groups || []).reduce((sum, g) => sum + Number(g.estimated_weight_g || 0), 0)
+      const items = [
+        ['Pieces', result.pieces?.length ?? 0],
+        ['Sort bins', result.groups?.length ?? 0],
+        ['Scale', `${result.scale_method || 'unknown'} · ${result.scale_confidence || 'unknown'}`],
+        ['Estimated weight', `${round(totalWeight, 1)} g`],
+      ]
+      summaryEl.innerHTML = items.map(([label, value]) => `<div class="metric"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div></div>`).join('')
+    }
+
+    function renderGroups(groups) {
+      groupsEl.innerHTML = groups.map(g => `
+        <article class="group">
+          <div class="group-top">
+            <div class="bin" style="background:${escapeAttr(g.outline_color || '#2563eb')}">${escapeHtml(g.sort_group_id || '')}</div>
+            <div>
+              <div class="group-title">${escapeHtml(groupTitle(g))}</div>
+              <div class="muted">${escapeHtml(g.sort_instruction || '')}</div>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">${escapeHtml(g.piece_count ?? 0)} pcs</span>
+            <span class="chip">${escapeHtml(g.total_weight_label || ((g.estimated_weight_g ?? 0) + ' g'))}</span>
+            <span class="chip">${escapeHtml(g.composition_guess || 'mixed textile')}</span>
+            <span class="chip">${escapeHtml(g.pattern_type || 'solid')}</span>
+          </div>
+        </article>
+      `).join('')
+    }
+
+    function renderTable(rows) {
+      if (!rows.length) { piecesTable.innerHTML = ''; return }
+      const headers = ['piece_id', 'bin', 'color', 'pattern', 'fabric_type', 'composition', 'confidence', 'size', 'area_cm2', 'weight_label']
+      piecesTable.innerHTML = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead>' +
+        '<tbody>' + rows.map(row => `<tr data-piece-id="${escapeAttr(row.piece_id)}">` + headers.map(h => cell(row, h)).join('') + '</tr>').join('') + '</tbody>'
+      piecesTable.querySelectorAll('tbody tr').forEach(row => {
+        row.addEventListener('click', () => {
+          selectedPieceId = Number(row.dataset.pieceId)
+          renderPieceDetail()
+        })
+      })
+    }
+
+    function cell(row, h) {
+      if (h === 'color') {
+        const piece = (lastResult?.pieces || []).find(p => p.id === row.piece_id)
+        return `<td><span class="swatch" style="background:${escapeAttr(piece?.color_hex || '#ddd')}"></span>${escapeHtml(row[h] ?? '')}</td>`
+      }
+      return `<td>${escapeHtml(row[h] ?? '')}</td>`
+    }
+
+    function renderPieceDetail() {
+      const piece = (lastResult?.pieces || []).find(p => p.id === selectedPieceId)
+      piecesTable.querySelectorAll('tbody tr').forEach(row => row.classList.toggle('selected', Number(row.dataset.pieceId) === selectedPieceId))
+      if (!piece) {
+        pieceDetail.innerHTML = '<h2>Piece Detail</h2><p class="muted">Select a piece row after running the pipeline.</p>'
+        return
+      }
+      pieceDetail.innerHTML = `
+        <h2>Piece ${escapeHtml(piece.sort_group_id || '')}${escapeHtml(piece.id)}</h2>
+        ${piece.crop_data_url ? `<img src="${piece.crop_data_url}" alt="">` : ''}
+        <div class="kv">
+          <div>Color</div><div><span class="swatch" style="background:${escapeAttr(piece.color_hex || '#ddd')}"></span>${escapeHtml(piece.color_family || piece.color_name)}</div>
+          <div>Pattern</div><div>${escapeHtml(piece.pattern_type || 'solid')}</div>
+          <div>Fabric</div><div>${escapeHtml(piece.fabric_type_guess || 'unknown textile')}</div>
+          <div>Structure</div><div>${escapeHtml(piece.weave_or_knit || 'unknown')}</div>
+          <div>Composition</div><div>${escapeHtml(piece.composition_guess || 'mixed textile')}</div>
+          <div>Confidence</div><div>${escapeHtml(piece.fabric_confidence || 'unknown')}</div>
+          <div>Area</div><div>${escapeHtml(piece.area_cm2 ?? '')} cm²</div>
+          <div>Weight</div><div>${escapeHtml(piece.weight_label || '')}</div>
+          <div>Evidence</div><div>${escapeHtml(piece.material_evidence || '')}</div>
+        </div>
+      `
+    }
+
+    function renderDebug(result) {
+      const refs = result.reference_objects || []
+      const discarded = result.discarded_objects || []
+      const reasonCounts = discarded.reduce((acc, item) => {
+        acc[item.reason] = (acc[item.reason] || 0) + 1
+        return acc
+      }, {})
+      debugSummary.innerHTML = `
+        <div class="kv">
+          <div>Scale method</div><div>${escapeHtml(result.scale_method || '')}</div>
+          <div>Scale confidence</div><div>${escapeHtml(result.scale_confidence || '')}</div>
+          <div>Pixels / cm</div><div>${escapeHtml(result.px_per_cm ?? '')}</div>
+          <div>References</div><div>${escapeHtml(refs.map(r => r.type + (r.id !== undefined ? ':' + r.id : '')).join(', ') || 'none')}</div>
+          <div>Discarded masks</div><div>${escapeHtml(discarded.length)}</div>
+          <div>Reasons</div><div>${escapeHtml(Object.entries(reasonCounts).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none')}</div>
+          <div>Segmentation</div><div>${escapeHtml(result.segmentation_method || '')}</div>
+          <div>LLM</div><div>${escapeHtml(result.llm_model || '')}</div>
+        </div>
+      `
+    }
+
+    downloadImage.addEventListener('click', () => {
+      if (!lastResult?.annotated_image_data_url) return
+      downloadDataUrl(lastResult.annotated_image_data_url, 'scrap-sorting-plan.png')
+    })
+
+    downloadCsv.addEventListener('click', () => {
+      const rows = lastResult?.piece_table || []
+      if (!rows.length) return
+      const headers = Object.keys(rows[0])
+      const csv = [headers.join(',')].concat(rows.map(row => headers.map(h => csvCell(row[h])).join(','))).join('\n')
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+      downloadUrl(url, 'scrap-piece-table.csv')
+    })
+
+    function csvCell(v) { return `"${String(v ?? '').replaceAll('"', '""')}"` }
+    function groupTitle(g) {
+      const color = g.color_family || g.color_name || 'mixed'
+      const fabric = g.fabric_type_guess || 'unknown textile'
+      return `${color} ${fabric}`
+    }
+    function round(n, places) {
+      const factor = 10 ** places
+      return Math.round(Number(n || 0) * factor) / factor
+    }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+    function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;') }
+    function downloadDataUrl(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; a.click() }
+    function downloadUrl(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url) }
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[Unit]
+Description=Reweave scanning station
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/reweave/station
+EnvironmentFile=/etc/reweave-station.env
+ExecStart=/home/pi/reweave/station/.venv/bin/python station.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+backend/scraps.db
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local runtime logs
+ngrok.log
+
+# Local visual inspection artifacts
+/.playwright-mcp/
+/reweave-*.png
+
+# Private AI tooling notes and config (local only)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+
+
+# Editor settings
+.vscode/
+.idea/
