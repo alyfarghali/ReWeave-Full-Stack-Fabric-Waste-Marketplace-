@@ -1,12 +1,9 @@
 """Database connection.
 
-The app runs on Supabase (Postgres). The connection string lives in
-backend/.env as DATABASE_URL, e.g.
-
-    DATABASE_URL=postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres
-
-so no credentials are committed. If DATABASE_URL is unset we fall back to a
-local SQLite file purely so the app can still boot for offline development.
+The app runs on Postgres. ``docker compose up -d db`` starts one locally and
+backend/.env points DATABASE_URL at it, so no credentials are committed. If
+DATABASE_URL is unset we fall back to a local SQLite file so the app can still
+boot without Docker.
 
 Each domain package declares its own ORM models against ``Base``; ``Database``
 owns the engine, hands out sessions, and creates/upgrades the schema.
@@ -35,8 +32,8 @@ class Database:
     def _create_engine(url: str) -> Engine:
         if url.startswith("sqlite"):
             return create_engine(url, connect_args={"check_same_thread": False})
-        # Supabase/Postgres: pre-ping so dropped pooler connections are recycled
-        # transparently instead of erroring on the next request.
+        # Postgres: pre-ping so dropped connections are recycled transparently
+        # instead of erroring on the next request.
         return create_engine(url, pool_pre_ping=True)
 
     def session(self) -> Session:
@@ -45,10 +42,8 @@ class Database:
     def create_schema(self) -> None:
         """Create missing tables, then add columns newer than the live schema.
 
-        Tables are created and owned by the Supabase migration (see the Supabase
-        project). create_all only fills in anything missing, so it is a no-op
-        against the managed schema and still works for the SQLite fallback.
-        Callers must import every domain's models module first so ``Base``
+        create_all only creates tables that don't exist yet, so it is safe on
+        every startup. Callers must import every domain's models module first so ``Base``
         knows about all tables.
         """
         from .schema_upgrades import SchemaUpgrader

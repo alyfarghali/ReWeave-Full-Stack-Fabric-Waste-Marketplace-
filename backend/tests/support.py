@@ -1,5 +1,10 @@
-"""Shared test harness: an isolated in-memory database and an API client with per-role tokens."""
+"""Shared test harness: an isolated database and an API client with per-role tokens.
 
+Tests use in-memory SQLite unless TEST_DATABASE_URL points at a dedicated
+Postgres database, which every test drops and recreates.
+"""
+
+import os
 import sys
 from pathlib import Path
 
@@ -31,7 +36,8 @@ PASSWORD = "secret-password"
 
 class ApiHarness:
     def __init__(self, *routers):
-        self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        self.engine = self._create_engine()
+        Base.metadata.drop_all(bind=self.engine)  # clear anything a crashed run left behind
         Base.metadata.create_all(bind=self.engine)
         self.Session = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
@@ -49,6 +55,14 @@ class ApiHarness:
                 db.flush()
                 self.tokens[role] = token_service().issue(user.id, role)
             db.commit()
+
+    @staticmethod
+    def _create_engine():
+        # In-memory SQLite by default; CI also runs the suite against Postgres.
+        url = os.getenv("TEST_DATABASE_URL")
+        if url:
+            return create_engine(url)
+        return create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 
     def _db(self):
         db = self.Session()

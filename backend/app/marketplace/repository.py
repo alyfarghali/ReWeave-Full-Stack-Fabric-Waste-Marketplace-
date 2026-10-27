@@ -25,7 +25,7 @@ class LotRepository:
     def all(self, newest_first: bool = False) -> list[Lot]:
         query = self.db.query(Lot)
         if newest_first:
-            query = query.order_by(Lot.created_at.desc())
+            query = query.order_by(Lot.created_at.desc(), Lot.id.desc())
         return query.all()
 
     def add(self, lot: Lot) -> None:
@@ -50,7 +50,7 @@ class LotRepository:
             query = query.filter(Lot.price_usd <= criteria.max_price)
         if criteria.q and criteria.q.strip():
             query = query.filter(self._text_match(criteria.q.strip()))
-        return query.order_by(Lot.created_at.desc()).all()
+        return query.order_by(Lot.created_at.desc(), Lot.id.desc()).all()
 
     def _text_match(self, term: str):
         """Postgres full-text search; substring match on SQLite."""
@@ -71,7 +71,7 @@ class ScanRunRepository:
     def all(self, newest_first: bool = False) -> list[ScanRun]:
         query = self.db.query(ScanRun)
         if newest_first:
-            query = query.order_by(ScanRun.created_at.desc())
+            query = query.order_by(ScanRun.created_at.desc(), ScanRun.id.desc())
         return query.all()
 
     def add(self, scan: ScanRun) -> None:

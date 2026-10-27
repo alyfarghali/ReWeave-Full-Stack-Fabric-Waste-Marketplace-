@@ -43,7 +43,7 @@ DEFAULT_SECRET_KEY = "reweave-dev-secret-do-not-use-in-prod"
 
 @dataclass(frozen=True)
 class Settings:
-    # Database: Supabase Postgres in production, local SQLite for offline dev.
+    # Database: Postgres (docker-compose.yml runs one locally); SQLite if unset.
     database_url: str = field(default_factory=lambda: _env("DATABASE_URL", "sqlite:///./scraps.db"))
 
     # Seed the three demo logins and the buyer catalog into an empty database.

@@ -86,15 +86,16 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow, data model, convent
 ### Backend
 
 ```bash
+docker compose up -d db              # Postgres 16 on localhost:5433
 cd backend
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env                 # then fill in keys and SECRET_KEY
+cp .env.example .env                 # DATABASE_URL already points at the db container; fill in keys and SECRET_KEY
 uvicorn app.main:app --reload --port 8000
 ```
 
-With no `DATABASE_URL`, the API creates `backend/scraps.db` (SQLite). On first start it seeds three demo logins and a catalog of buyer profiles. No inventory is seeded: every lot comes from a scan, either a real photo or the factory portal's synthetic live-scan demo, which uses the same listing endpoint. Interactive API docs are served at <http://localhost:8000/docs>.
+Without Docker, leave `DATABASE_URL` unset and the API uses a SQLite file, `backend/scraps.db`, instead. To move an existing SQLite database into Postgres, run `python scripts/sqlite_to_postgres.py sqlite:///./scraps.db postgresql://reweave:reweave@localhost:5433/reweave` before the API's first start against Postgres. On first start it seeds three demo logins and a catalog of buyer profiles. No inventory is seeded: every lot comes from a scan, either a real photo or the factory portal's synthetic live-scan demo, which uses the same listing endpoint. Interactive API docs are served at <http://localhost:8000/docs>.
 
 ### Frontend
 
@@ -122,10 +123,14 @@ Set `SEED_DEMO_DATA=false` to skip seeding in shared environments.
 ```bash
 cd backend
 pip install pytest
-python -m pytest
+python -m pytest                      # in-memory SQLite
+
+# The same suite against Postgres (a dedicated, throwaway database):
+docker compose exec db psql -U reweave -c "CREATE DATABASE reweave_test"
+TEST_DATABASE_URL=postgresql://reweave:reweave@localhost:5433/reweave_test python -m pytest
 ```
 
-The suite covers pricing, impact figures, the lot lifecycle (merging, partial claims), authorization rules, password hashing, serving the built frontend, and the scan pipeline end to end against a synthetic 12-piece scene with stubbed SAM and LLM calls. [CI](.github/workflows/ci.yml) runs it and the frontend build on every push and pull request.
+The suite covers pricing, impact figures, the lot lifecycle (merging, partial claims), authorization rules, password hashing, serving the built frontend, and the scan pipeline end to end against a synthetic 12-piece scene with stubbed SAM and LLM calls. [CI](.github/workflows/ci.yml) runs it on both SQLite and Postgres, plus the frontend and Docker builds, on every push and pull request.
 
 ## Configuration
 
@@ -133,7 +138,7 @@ All backend settings are environment variables, read in `backend/app/core/config
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./scraps.db` | SQLAlchemy URL; use Postgres in production |
+| `DATABASE_URL` | `sqlite:///./scraps.db` | SQLAlchemy URL. `.env.example` points it at the local Postgres container |
 | `SECRET_KEY` | development key | JWT signing key. **Must be set** outside local development |
 | `TOKEN_EXPIRE_HOURS` | `8` | Access-token lifetime |
 | `CORS_ORIGINS` | `localhost:5173` | Comma-separated origins for split-origin deployments |
@@ -219,14 +224,14 @@ Weight and piece-count accuracy against a real scale has **not been measured yet
 
 ## Deployment
 
-The [Dockerfile](Dockerfile) builds the React app and serves it from FastAPI, so the whole product runs as one container behind one URL:
+The [Dockerfile](Dockerfile) builds the React app and serves it from FastAPI, so the whole product runs as one container behind one URL. `docker compose up --build` runs it locally with its Postgres database on <http://localhost:8000> (set `APP_PORT` to use another port). To run the image elsewhere:
 
 ```bash
 docker build -t reweave .
 docker run -p 8000:8000 -e SECRET_KEY=... -e DATABASE_URL=postgresql://... reweave
 ```
 
-Any container host works (Render, Fly.io, Railway); [render.yaml](render.yaml) is a ready Render Blueprint. Set `SECRET_KEY` and `DATABASE_URL` (the container's SQLite file is lost on restart), plus the AI keys if scans should run. Pass `--build-arg VITE_MAPBOX_TOKEN=...` to enable the supplier map.
+Any container host works (Render, Fly.io, Railway); [render.yaml](render.yaml) is a ready Render Blueprint. Set `SECRET_KEY` and a Postgres `DATABASE_URL` (without one the container falls back to a SQLite file, which is lost on restart), plus the AI keys if scans should run. Pass `--build-arg VITE_MAPBOX_TOKEN=...` to enable the supplier map.
 
 ## Repository layout
 
@@ -242,6 +247,7 @@ frontend/
 station/          Raspberry Pi scanning station (see its README)
 docs/             pipeline walkthrough, accuracy evaluation, README media
 Dockerfile        single-container build (frontend served by the API)
+docker-compose.yml  Postgres for development; the full app with `--build`
 ```
 
 ## License

@@ -1,0 +1,39 @@
+# Local development: `docker compose up -d db` starts Postgres on localhost:5433
+# for a backend run with uvicorn. `docker compose up --build` runs the whole app
+# (frontend served by the API) on http://localhost:8000, or on APP_PORT if set.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reweave
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reweave}
+      POSTGRES_DB: reweave
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # 5433 on the host so it doesn't collide with another local Postgres.
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reweave -d reweave"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://reweave:${POSTGRES_PASSWORD:-reweave}@db:5432/reweave
+      SECRET_KEY: ${SECRET_KEY:-local-compose-secret-change-me}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+
+volumes:
+  pgdata:
