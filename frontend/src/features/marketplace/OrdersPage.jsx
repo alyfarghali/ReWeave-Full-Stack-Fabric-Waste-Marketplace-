@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { getLots } from './api.js'
 import { firstImage } from './lots.js'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { formatDateEastern, formatImpactMass, formatMoney, formatWater, formatWeightKg } from '../../shared/formatters.js'
+import { formatDateEastern, formatImpactMass, formatMoney, formatWater, formatWeightKg, showerCount } from '../../shared/formatters.js'
 
 function ImpactCert({ orders }) {
   const totalCarbon = orders.reduce((s, o) => s + (o.carbon_saved_kg || 0), 0)
@@ -12,7 +12,7 @@ function ImpactCert({ orders }) {
 
   if (totalCarbon === 0) return null
 
-  const showers = Math.round(totalWater / 65)
+  const showers = showerCount(totalWater)
 
   return (
     <div className="orders-cert">
