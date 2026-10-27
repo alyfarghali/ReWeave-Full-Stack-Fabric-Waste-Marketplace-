@@ -8,11 +8,10 @@ Factory photo
         decode → ScaleDetector → ReplicateSamSegmenter → MaskFilter
         → ColorAnalyzer + PieceGeometry → MaterialClassifier (vision LLM)
         → WeightEstimator → SortGrouper → AnnotationRenderer
-  └─▶ POST /api/lots/scan-runs          inventory/  record the scan
-  └─▶ POST /api/lots (one per bin)      inventory/  price (pricing/), impact (impact/), merge or create
+  └─▶ POST /api/lots/from-scan          marketplace/  one scan run plus one lot per bin: price and impact (valuation/), merge or create
 Buyer
-  └─▶ GET  /api/lots?…                  inventory/  search, current decayed price
-  └─▶ POST /api/lots/{id}/claim         inventory/  full or partial claim, row-locked
+  └─▶ GET  /api/lots?…                  marketplace/  search, current decayed price
+  └─▶ POST /api/lots/{id}/claim         marketplace/  full or partial claim, row-locked
 Admin
   └─▶ GET  /api/admin/metrics           admin/      AdminMetricsReport over lots and scan runs
 ```
@@ -71,8 +70,8 @@ Attach a guard per route, either `dependencies=[Depends(require_admin)]` or as a
 
 ## Frontend
 
-- `src/api.js` is the only module that calls the backend. It attaches the bearer token, raises `ApiError` with `.status` and the server's `detail` message, and fires `auth:expired` on a rejected token, which `AuthContext` handles by signing the user out.
-- Portal pages are lazy-loaded per route (`App.jsx`), so the landing page doesn't download Mapbox or the charting libraries.
+- `src/shared/api.js` is the HTTP client; each feature's `api.js` declares its endpoints on top of it. It attaches the bearer token, raises `ApiError` with `.status` and the server's `detail` message, and fires `auth:expired` on a rejected token, which `AuthContext` handles by signing the user out.
+- Portal pages are lazy-loaded per route (`app/App.jsx`), so the landing page doesn't download the charting libraries. The supplier map is lazy-loaded again inside the marketplace, so Mapbox only downloads when a buyer opens the map view.
 - `ProtectedRoute` gates each portal by role in the UI. The backend enforces the same rules independently.
 
 ## Scaling roadmap
@@ -88,5 +87,5 @@ The current design is correct at pilot scale. These are the known limits and the
 | Listing queries | `GET /lots` returns every match, and price filters use base price | Add cursor pagination. Filter and sort on a computed current-price column |
 | Dashboard | `AdminMetricsReport` loads every lot into memory | Compute aggregates in SQL, or keep a materialized summary updated on write |
 | Abuse controls | Paid AI endpoints are role-gated but not rate-limited | Per-user rate limits and spend caps on `/vision/detect`, `/destinations/analyze`, `/chat` |
-| Impact factors | One global CO₂ and water factor; the dashboard uses slightly different equivalence constants than `ImpactCalculator` | Per-fiber factors from published LCA data, from a single source |
+| Impact factors | One global CO₂ and water factor in `ImpactFactors`, used by every backend surface | Per-fiber factors from published LCA data |
 | Tokens | 8-hour JWTs in `localStorage` with no refresh or revocation | Short-lived access tokens plus refresh tokens in httpOnly cookies |
