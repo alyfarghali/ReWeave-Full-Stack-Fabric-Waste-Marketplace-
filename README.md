@@ -34,11 +34,11 @@ The full walkthrough of the scan pipeline is in [docs/pipeline.md](docs/pipeline
 - **Destination engine:** for each bin, ranks reuse pathways (upcycling, fiber reclamation, insulation, wiping cloths, landfill) by revenue, CO₂ saved, and buyer demand, and suggests matching buyers.
 
 **Buyer portal**
-- **Marketplace:** filter lots by fabric, color, and price; full-text search; supplier map with distance and freight estimates; partial-quantity purchases.
+- **Marketplace:** filter lots by fabric, color, and price; full-text search; supplier map with distance and freight estimates; partial-quantity purchases. Equivalent lots from different scans (same fabric, composition, and color) appear as one listing, and checkout claims each underlying lot.
 - **My Orders:** claimed lots with an aggregate impact certificate.
 
 **Admin portal**
-- **Operations dashboard:** revenue, gross margin, inventory value, claim rate, scan history, and fabric mix.
+- **Operations dashboard:** revenue, estimated gross margin (costs are assumed to be 28% of revenue), inventory value, claim rate, scan history, and fabric mix.
 - **Impact:** total kg diverted, CO₂ and water saved, with everyday equivalents.
 - **Inventory:** delist, relist, or delete lots.
 - **Network:** projected impact once the pipeline runs across a full multi-facility supply chain.
@@ -64,7 +64,7 @@ The backend is organized by business domain. Each package owns its models, schem
 | Package | Responsibility |
 |---|---|
 | `scanning/` | Photo → sorted bins: scale detection (ArUco marker or ruler), SAM segmentation, mask filtering, color and pattern analysis, vision-LLM material classification, weight estimation, bin grouping, annotated output |
-| `marketplace/` | Lots and scan runs: listing a scan as lots, merging matching lots, partial claims, delist/relist, search |
+| `marketplace/` | Lots and scan runs: listing a scan as one lot per bin, partial claims, delist/relist, search |
 | `valuation/` | Base-price model, time decay, and CO₂/water/energy factors with everyday equivalents |
 | `destinations/` | Buyer profiles, reuse-pathway scoring, and buyer matching |
 | `admin/` | Operations dashboard report |
@@ -78,8 +78,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow, data model, convent
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.11 or 3.12 (the pinned NumPy 1.26 has no wheels for 3.13)
 - Node.js 18+
+- Docker, for the local Postgres database (optional: without it the backend falls back to SQLite)
 - API keys for [OpenRouter](https://openrouter.ai) and [Replicate](https://replicate.com) (needed for scanning and the assistant; the marketplace and dashboards work without them)
 - Optional: a [Mapbox](https://www.mapbox.com) token for the buyer supplier map
 
@@ -130,7 +131,7 @@ docker compose exec db psql -U reweave -c "CREATE DATABASE reweave_test"
 TEST_DATABASE_URL=postgresql://reweave:reweave@localhost:5433/reweave_test python -m pytest
 ```
 
-The suite covers pricing, impact figures, the lot lifecycle (merging, partial claims), authorization rules, password hashing, serving the built frontend, and the scan pipeline end to end against a synthetic 12-piece scene with stubbed SAM and LLM calls. [CI](.github/workflows/ci.yml) runs it on both SQLite and Postgres, plus the frontend and Docker builds, on every push and pull request.
+The suite covers pricing, impact figures, the lot lifecycle (one lot per bin, partial claims), authorization rules, password hashing, serving the built frontend, and the scan pipeline end to end against a synthetic 12-piece scene with stubbed SAM and LLM calls. [CI](.github/workflows/ci.yml) runs it on both SQLite and Postgres, plus the frontend and Docker builds, on every push and pull request.
 
 ## Configuration
 
@@ -141,16 +142,19 @@ All backend settings are environment variables, read in `backend/app/core/config
 | `DATABASE_URL` | `sqlite:///./scraps.db` | SQLAlchemy URL. `.env.example` points it at the local Postgres container |
 | `SECRET_KEY` | development key | JWT signing key. **Must be set** outside local development |
 | `TOKEN_EXPIRE_HOURS` | `8` | Access-token lifetime |
-| `CORS_ORIGINS` | `localhost:5173` | Comma-separated origins for split-origin deployments |
+| `CORS_ORIGINS` | `http://localhost:5173`, `http://127.0.0.1:5173` | Comma-separated origins for split-origin deployments |
 | `SEED_DEMO_DATA` | `true` | Seed demo logins and buyers into an empty database |
 | `FRONTEND_DIST_DIR` | — | Serve the built frontend from the API (set by the Dockerfile) |
 | `DISPLAY_TIMEZONE` | `America/New_York` | Timezone for dashboard timestamps |
 | `OPENROUTER_API_KEY` | — | Vision material classifier, destination naming, assistant |
 | `OPENROUTER_VISION_MODELS` | Gemini 2.5 Flash, Claude Sonnet 4.6, GPT-4o | Ordered fallback list |
+| `OPENROUTER_TIMEOUT_S` | `60` | Per-request timeout for OpenRouter calls |
 | `REPLICATE_API_TOKEN` | — | SAM segmentation |
 | `REPLICATE_SAM_MODEL` | `lucataco/segment-anything-2` | Public SAM model |
 | `REPLICATE_DEPLOYMENT` | — | Optional always-warm deployment to avoid cold starts |
 | `ARUCO_MARKER_SIZE_CM` / `ARUCO_MARKER_ID` | `5.0` / `23` | Printed scale marker |
+| `VISION_MAX_IMAGE_DIMENSION` | `1600` | Longest side, in pixels, of the working copy of each photo |
+| `VISION_MAX_PIECES` | `35` | Most pieces kept per scan after mask filtering |
 
 Frontend: `VITE_MAPBOX_TOKEN` in `frontend/.env`.
 
@@ -183,22 +187,25 @@ The running API also serves interactive OpenAPI docs at `/docs`.
 Implemented in `backend/app/valuation/pricing.py`. A lot's base price is computed when it is listed, entirely from what the camera measured:
 
 ```
-base_price = base_per_kg(fabric) × purity × color × weight_tier × piece_count × weight_kg
+base_price = base_per_kg(fabric) × purity × color × weight_tier × piece_tier × weight_kg
 ```
 
-| Fabric | $/kg | | Factor | Rule | Multiplier |
-|---|---|---|---|---|---|
-| Silk | 14.00 | | Purity | ≥95% single fiber | ×1.20 |
-| Wool | 6.50 | | | 85–94% | ×1.10 |
-| Linen | 4.50 | | | <70% | ×0.85 |
-| Denim | 3.80 | | Color | white / natural | ×1.15 |
-| Twill | 3.50 | | | cream / ivory | ×1.12 |
-| Cotton | 3.20 | | | mixed | ×0.85 |
-| Jersey | 2.80 | | Weight | ≥15 kg | ×0.88 |
-| Spandex | 2.20 | | | ≤1 kg | ×1.20 |
-| Nylon | 1.80 | | Pieces | <10 | ×1.20 |
-| Polyester | 1.20 | | | >50 | ×0.90 |
-| Other | 2.00 | | | | |
+A lot with any weight and pieces is never priced below $0.01.
+
+**Base price per kg.** The first keyword found in the fabric name, in this order, sets the rate, so "cotton twill" prices as twill and "cotton jersey" as cotton.
+
+| Silk | Wool | Linen | Denim | Twill | Cotton | Jersey | Spandex | Nylon | Polyester | Other |
+|---|---|---|---|---|---|---|---|---|---|---|
+| $14.00 | $6.50 | $4.50 | $3.80 | $3.50 | $3.20 | $2.80 | $2.20 | $1.80 | $1.20 | $2.00 |
+
+**Multipliers.**
+
+| Factor | Rule | Multiplier |
+|---|---|---|
+| Purity (dominant fiber %) | ≥95% · 85–94% · 70–84% · <70% · no % given | ×1.20 · ×1.10 · ×1.00 · ×0.85 · ×1.00 |
+| Color | white, natural · cream, ivory · beige · grey, black · navy, blue · red, green · yellow · mixed · anything else | ×1.15 · ×1.12 · ×1.10 · ×1.05 · ×1.00 · ×0.97 · ×0.95 · ×0.85 · ×1.00 |
+| Weight | ≤1 kg · 1–3 kg · 3–8 kg · 8–15 kg · ≥15 kg | ×1.20 · ×1.10 · ×1.00 · ×0.95 · ×0.88 |
+| Pieces | <10 · 10–30 · 31–50 · >50 | ×1.20 · ×1.05 · ×1.00 · ×0.90 |
 
 Unsold lots are marked down at read time, never in storage, so turnover is rewarded without rewriting history:
 
@@ -239,7 +246,7 @@ Any container host works (Render, Fly.io, Railway); [render.yaml](render.yaml) i
 backend/
   app/            FastAPI application, one package per domain (see above)
   tests/          pytest suite
-  scripts/        printable ArUco marker generator, estimate-accuracy evaluation
+  scripts/        ArUco marker generator, estimate-accuracy evaluation, SQLite-to-Postgres copy
 frontend/
   src/app/        routing, role guards, lazy-loaded portals
   src/features/   one folder per domain: scanning (factory), marketplace (buyer), admin, auth, assistant, landing, demo
