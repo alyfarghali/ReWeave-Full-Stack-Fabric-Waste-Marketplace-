@@ -1,0 +1,19 @@
+# Render Blueprint: New > Blueprint in the Render dashboard, pick this repo.
+# Values marked sync: false are prompted for at creation and never committed.
+services:
+  - type: web
+    name: reweave
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://reweave.alyfarghali.com
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false

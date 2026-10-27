@@ -226,7 +226,7 @@ docker build -t reweave .
 docker run -p 8000:8000 -e SECRET_KEY=... -e DATABASE_URL=postgresql://... reweave
 ```
 
-Any container host works (Render, Fly.io, Railway). Set `SECRET_KEY` and `DATABASE_URL` (the container's SQLite file is lost on restart), plus the AI keys if scans should run. Pass `--build-arg VITE_MAPBOX_TOKEN=...` to enable the supplier map.
+Any container host works (Render, Fly.io, Railway); [render.yaml](render.yaml) is a ready Render Blueprint. Set `SECRET_KEY` and `DATABASE_URL` (the container's SQLite file is lost on restart), plus the AI keys if scans should run. Pass `--build-arg VITE_MAPBOX_TOKEN=...` to enable the supplier map.
 
 ## Repository layout
 
