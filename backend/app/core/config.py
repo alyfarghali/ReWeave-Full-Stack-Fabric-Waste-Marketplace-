@@ -55,6 +55,10 @@ class Settings:
         default_factory=lambda: _env_list("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
     )
 
+    # Built frontend (frontend/dist) to serve from the API process, so one
+    # container hosts the whole app. Unset in development, where Vite serves it.
+    frontend_dist_dir: str = field(default_factory=lambda: _env("FRONTEND_DIST_DIR"))
+
     # IANA timezone for human-readable timestamps (admin scan-run labels).
     display_timezone: str = field(default_factory=lambda: _env("DISPLAY_TIMEZONE", "America/New_York"))
 
