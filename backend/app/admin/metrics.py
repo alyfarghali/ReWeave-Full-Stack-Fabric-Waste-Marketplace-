@@ -13,19 +13,12 @@ from zoneinfo import ZoneInfo
 from ..core.config import get_settings
 from ..marketplace.models import Lot, LotStatus, ScanRun
 from ..marketplace.piece_images import PieceImages
+from ..valuation import impact_calculator
 
 ESTIMATED_COST_FACTOR = 0.28
 DIVERSION_TARGET_KG = 5.0
 RECENT_RUN_LIMIT = 8
 LOTS_PER_RUN = 10
-
-# Dashboard-specific equivalence factors (these differ slightly from
-# ImpactFactors; kept as-is so dashboard numbers don't shift).
-CAR_MILES_PER_KG_CO2 = 2.48
-PHONE_CHARGES_PER_KG_CO2 = 122
-LITERS_PER_SHOWER = 65
-LITERS_PER_BOTTLE = 0.5
-KWH_PER_KG_DIVERTED = 15
 
 
 def round_small(value: float, small_digits: int = 3, normal_digits: int = 1) -> float:
@@ -186,15 +179,16 @@ class AdminMetricsReport:
 
     def impact(self) -> dict:
         weight, carbon, water = self.totals.weight_kg, self.totals.carbon_kg, self.totals.water_l
+        equivalents = impact_calculator.equivalents(carbon, water)
         return {
             "total_weight_kg": round_small(weight, normal_digits=2),
             "total_carbon_saved_kg": round_small(carbon, normal_digits=2),
             "total_water_saved_l": round(water, 1),
-            "carbon_equiv_car_miles": round(carbon * CAR_MILES_PER_KG_CO2, 1),
-            "carbon_equiv_phones": int(carbon * PHONE_CHARGES_PER_KG_CO2),
-            "water_equiv_showers": round(water / LITERS_PER_SHOWER, 1),
-            "water_equiv_bottles": int(water / LITERS_PER_BOTTLE),
-            "energy_saved_kwh": round(weight * KWH_PER_KG_DIVERTED, 2),
+            "carbon_equiv_car_miles": equivalents.car_miles,
+            "carbon_equiv_phones": equivalents.phone_charges,
+            "water_equiv_showers": equivalents.showers,
+            "water_equiv_bottles": equivalents.plastic_bottles,
+            "energy_saved_kwh": impact_calculator.energy_saved_kwh(weight),
             "diversion_target_kg": DIVERSION_TARGET_KG,
             "diversion_pct": (
                 min(100, round(weight / DIVERSION_TARGET_KG * 100, 1)) if DIVERSION_TARGET_KG else 0

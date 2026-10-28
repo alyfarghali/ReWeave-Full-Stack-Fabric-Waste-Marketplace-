@@ -46,6 +46,13 @@ export function formatWater(liters) {
   return `${formatNumber(value / 1000, 1)}K L`
 }
 
+// Keep in sync with ImpactFactors.water_l_per_shower in backend/app/valuation/impact.py.
+const LITERS_PER_SHOWER = 65
+
+export function showerCount(liters) {
+  return Math.round((Number(liters) || 0) / LITERS_PER_SHOWER)
+}
+
 export function formatInputKg(value) {
   const kg = Number(value) || 0
   if (kg <= 0) return '0'

@@ -2,7 +2,7 @@
 
 There is no migration tool; on startup we compare each table's live columns
 against what the models expect and ``ALTER TABLE ... ADD COLUMN`` anything
-missing. Works on both SQLite (local dev) and Postgres (Supabase).
+missing. Works on both Postgres and SQLite.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class SchemaUpgrader:
         )
 
     def _upgrade_users(self) -> None:
-        """Buyer location columns, added after the managed Supabase users table."""
+        """Buyer location columns, added after the users table first shipped."""
         self._add_missing_columns("users", {"lat": "FLOAT", "lng": "FLOAT"})
 
     # -- helpers ----------------------------------------------------------------

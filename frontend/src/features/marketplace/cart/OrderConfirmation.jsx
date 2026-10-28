@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatImpactMass, formatMoney, formatWater, formatWeightKg } from '../../../shared/formatters.js'
+import { formatImpactMass, formatMoney, formatWater, formatWeightKg, showerCount } from '../../../shared/formatters.js'
 
 // Shown right after a buyer checks out. Summarizes what they claimed and the
 // impact it carried, then points them at their orders.
@@ -16,7 +16,7 @@ export default function OrderConfirmation({ order, onClose }) {
   if (!order) return null
 
   const { count, totalPrice, totalWeight, totalCarbon, totalWater, lots } = order
-  const showers = Math.round(totalWater / 65)
+  const showers = showerCount(totalWater)
 
   return (
     <>

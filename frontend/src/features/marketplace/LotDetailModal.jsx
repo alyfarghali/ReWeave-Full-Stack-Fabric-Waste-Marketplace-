@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useCart } from './cart/CartContext.jsx'
-import { formatImpactMass, formatMoney, formatWater, formatWeightKg } from '../../shared/formatters.js'
+import { formatImpactMass, formatMoney, formatWater, formatWeightKg, showerCount } from '../../shared/formatters.js'
 
 // Origin comes from the GPS fix the factory worker shared at scan time.
 function originFor(lot) {
@@ -42,7 +42,7 @@ function DecayBar({ decayPct, daysListed }) {
 }
 
 function ImpactRow({ lot }) {
-  const showers = Math.round(lot.water_saved_l / 65)
+  const showers = showerCount(lot.water_saved_l)
 
   return (
     <div className="detail-impact-grid">

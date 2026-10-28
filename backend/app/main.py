@@ -11,6 +11,7 @@ from .assistant.router import router as assistant_router
 from .auth.router import router as auth_router
 from .core.config import get_settings, load_env_files
 from .core.database import database
+from .core.frontend import mount_frontend
 from .destinations.router import router as destinations_router
 from .marketplace.router import router as marketplace_router
 from .scanning.router import router as scanning_router
@@ -57,6 +58,10 @@ def create_app() -> FastAPI:
     @app.get("/api/health")
     def health():
         return {"status": "ok"}
+
+    # Registered last so its catch-all route never shadows an API route.
+    if settings.frontend_dist_dir:
+        mount_frontend(app, settings.frontend_dist_dir)
 
     return app
 

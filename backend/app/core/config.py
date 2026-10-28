@@ -43,7 +43,7 @@ DEFAULT_SECRET_KEY = "reweave-dev-secret-do-not-use-in-prod"
 
 @dataclass(frozen=True)
 class Settings:
-    # Database: Supabase Postgres in production, local SQLite for offline dev.
+    # Database: Postgres (docker-compose.yml runs one locally); SQLite if unset.
     database_url: str = field(default_factory=lambda: _env("DATABASE_URL", "sqlite:///./scraps.db"))
 
     # Seed the three demo logins and the buyer catalog into an empty database.
@@ -54,6 +54,10 @@ class Settings:
     cors_origins: list[str] = field(
         default_factory=lambda: _env_list("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
     )
+
+    # Built frontend (frontend/dist) to serve from the API process, so one
+    # container hosts the whole app. Unset in development, where Vite serves it.
+    frontend_dist_dir: str = field(default_factory=lambda: _env("FRONTEND_DIST_DIR"))
 
     # IANA timezone for human-readable timestamps (admin scan-run labels).
     display_timezone: str = field(default_factory=lambda: _env("DISPLAY_TIMEZONE", "America/New_York"))

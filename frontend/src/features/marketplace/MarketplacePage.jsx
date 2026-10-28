@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { getLots } from './api.js'
 import { itemPrice, useCart } from './cart/CartContext.jsx'
 import { groupLots, quantityInput, useLotQuantities } from './lots.js'
-import SupplierMap from './SupplierMap.jsx'
 import LotDetailModal from './LotDetailModal.jsx'
 import { capitalize, formatMoney, formatUnitPrice, formatWeightKg } from '../../shared/formatters.js'
+
+// mapbox-gl is most of the bundle; only fetch it when the buyer opens the map.
+const SupplierMap = lazy(() => import('./SupplierMap.jsx'))
 
 export default function MarketplacePage() {
   const { cart, addToCart, removeFromCart } = useCart()
@@ -112,7 +114,9 @@ export default function MarketplacePage() {
 
       {view === 'map' && (
         <div className="buyer-map-wrap">
-          <SupplierMap lots={lots} />
+          <Suspense fallback={<div className="dash-loading">Loading map…</div>}>
+            <SupplierMap lots={lots} />
+          </Suspense>
         </div>
       )}
 

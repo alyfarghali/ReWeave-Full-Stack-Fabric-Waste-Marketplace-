@@ -11,6 +11,7 @@ class ImpactFactors:
     # textile waste from landfill. Candidates for per-fabric refinement.
     carbon_per_kg: float = 2.1  # kg CO2-equivalent saved per kg of fabric diverted
     water_per_kg: float = 2700.0  # liters of water saved per kg diverted (cotton-heavy estimate)
+    energy_kwh_per_kg: float = 15.0  # production energy avoided per kg diverted
 
     # "Equivalencies" that translate raw CO2/water totals into relatable
     # everyday comparisons for the impact dashboard.
@@ -52,6 +53,9 @@ class ImpactCalculator:
 
     def raw_water_l(self, weight_kg: float) -> float:
         return weight_kg * self.factors.water_per_kg
+
+    def energy_saved_kwh(self, weight_kg: float) -> float:
+        return round(weight_kg * self.factors.energy_kwh_per_kg, 2)
 
     def equivalents(self, carbon_kg: float, water_l: float) -> Equivalents:
         f = self.factors
