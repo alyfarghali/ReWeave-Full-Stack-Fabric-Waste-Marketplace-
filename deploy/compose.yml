@@ -1,0 +1,50 @@
+# Production stack for the portfolio server. Lives at /opt/portfolio on the VM.
+# Caddy terminates HTTPS for every project and proxies each subdomain to its
+# container; only Caddy publishes ports. Add a project by adding its service
+# here and a site block to the Caddyfile.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  reweave:
+    image: ghcr.io/alyfarghali/reweave:latest
+    restart: unless-stopped
+    depends_on:
+      reweave-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://reweave:${REWEAVE_DB_PASSWORD}@reweave-db:5432/reweave
+      SECRET_KEY: ${REWEAVE_SECRET_KEY}
+      CORS_ORIGINS: https://reweave.alyfarghali.com
+      OPENROUTER_API_KEY: ${REWEAVE_OPENROUTER_API_KEY:-}
+      REPLICATE_API_TOKEN: ${REWEAVE_REPLICATE_API_TOKEN:-}
+
+  reweave-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reweave
+      POSTGRES_PASSWORD: ${REWEAVE_DB_PASSWORD}
+      POSTGRES_DB: reweave
+    volumes:
+      - reweave_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reweave -d reweave"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  caddy_data:
+  caddy_config:
+  reweave_pgdata:

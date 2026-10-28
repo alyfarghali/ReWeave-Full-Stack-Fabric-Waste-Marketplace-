@@ -231,14 +231,22 @@ Weight and piece-count accuracy against a real scale has **not been measured yet
 
 ## Deployment
 
-The [Dockerfile](Dockerfile) builds the React app and serves it from FastAPI, so the whole product runs as one container behind one URL. `docker compose up --build` runs it locally with its Postgres database on <http://localhost:8000> (set `APP_PORT` to use another port). To run the image elsewhere:
+The [Dockerfile](Dockerfile) builds the React app and serves it from FastAPI, so the whole product runs as one container behind one URL. `docker compose up --build` runs it locally with its Postgres database on <http://localhost:8000> (set `APP_PORT` to use another port).
 
-```bash
-docker build -t reweave .
-docker run -p 8000:8000 -e SECRET_KEY=... -e DATABASE_URL=postgresql://... reweave
+The live site runs on a single Ubuntu VM that hosts several portfolio projects ([deploy/](deploy)):
+
+```
+GitHub push to main ─▶ CI: tests, frontend build, Docker build
+                     ─▶ publish image to ghcr.io/alyfarghali/reweave
+                     ─▶ SSH to the VM: docker compose pull + up
+VM: Caddy (HTTPS, one subdomain per project) ─▶ reweave container ─▶ reweave-db (Postgres)
 ```
 
-Any container host works (Render, Fly.io, Railway); [render.yaml](render.yaml) is a ready Render Blueprint. Set `SECRET_KEY` and a Postgres `DATABASE_URL` (without one the container falls back to a SQLite file, which is lost on restart), plus the AI keys if scans should run. Pass `--build-arg VITE_MAPBOX_TOKEN=...` to enable the supplier map.
+- [deploy/setup.sh](deploy/setup.sh) prepares a fresh server once: Docker, a firewall allowing only SSH and web traffic, key-only SSH, automatic security updates, a `deploy` user for CI, generated secrets, nightly database backups, and weekly image cleanup.
+- [deploy/compose.yml](deploy/compose.yml) and [deploy/Caddyfile](deploy/Caddyfile) define the stack. Caddy obtains and renews certificates on its own.
+- The `publish` and `deploy` jobs in [CI](.github/workflows/ci.yml) run only for pushes to `main` after every check passes, and only once the `DEPLOY_HOST` repository variable is set. They need the `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` secrets.
+
+To run the image on any other container host, set `SECRET_KEY` and a Postgres `DATABASE_URL` (without one the container falls back to a SQLite file, which is lost on restart), plus the AI keys if scans should run. Pass `--build-arg VITE_MAPBOX_TOKEN=...` to enable the supplier map.
 
 ## Repository layout
 
@@ -255,6 +263,7 @@ station/          Raspberry Pi scanning station (see its README)
 docs/             pipeline walkthrough, accuracy evaluation, README media
 Dockerfile        single-container build (frontend served by the API)
 docker-compose.yml  Postgres for development; the full app with `--build`
+deploy/           production stack, server setup script
 ```
 
 ## License
