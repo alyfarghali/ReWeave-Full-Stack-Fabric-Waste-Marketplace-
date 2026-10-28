@@ -1,7 +1,0 @@
-# One site block per project. Caddy obtains and renews HTTPS certificates
-# automatically once the subdomain's DNS A record points at this server.
-
-reweave.alyfarghali.com {
-	encode zstd gzip
-	reverse_proxy reweave:8000
-}
